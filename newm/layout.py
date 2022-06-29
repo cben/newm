@@ -296,6 +296,7 @@ class LayoutThread(Thread):
 
             time.sleep(1.0 / 30.0)
 
+logger.error('before class Layout %r', id(Layout))
 
 class Layout(PyWM[View], Animate[PyWMDownstreamState], Animatable):
     def __init__(self, debug: bool = False, config_file: Optional[str] = None) -> None:
@@ -480,10 +481,7 @@ class Layout(PyWM[View], Animate[PyWMDownstreamState], Animatable):
 
         self.damage()
 
-    def _setup(self, fallback: bool = True, reconfigure: bool = True) -> None:
-        if reconfigure:
-            load_config(fallback=fallback, path_str=self._config_file)
-
+    def _setup(self, reconfigure: bool = True) -> None:
         self._setup_widgets()
 
         self.key_processor.clear()
@@ -1213,11 +1211,26 @@ class Layout(PyWM[View], Animate[PyWMDownstreamState], Animatable):
     """
 
     def update_config(self) -> None:
-        self._setup(fallback=False)
+        load_config(fallback=False, path_str=self._config_file)
+        self._handle_module_reload() # Best place
+
+        self._setup()
         self.damage()
 
         conf_on_reconfigure()()
+        self._handle_module_reload()
 
+    def _handle_module_reload(self):
+        """
+        Kludge: Minimal support for config reload()ing this module. True if updated.
+        """
+        orig_class = self.__class__
+        new_class = Layout
+        logger.warning("id(orig_class) = %s, id(new_class) = %s", id(orig_class), id(new_class)) # debug
+        if new_class is not orig_class and new_class.__name__ == orig_class.__name__:
+            logger.warning("Patching instance %r with new __class__ %r. USE AT YOUR OWN RISK.", self, new_class)
+            self.__class__ = new_class
+    
     def ensure_locked(self, anim: bool = True, dim: bool = False) -> None:
         def focus_lock() -> None:
             lock_screen = [v for v in self.panels() if v.panel == "lock"]
@@ -1607,3 +1620,5 @@ class Layout(PyWM[View], Animate[PyWMDownstreamState], Animatable):
 
     def close_view(self) -> None:
         self.close_focused_view()
+
+logger.error('class Layout -> %r', id(Layout))
